@@ -1,0 +1,43 @@
+# virtual environment
+.env/
+.venv/
+env/
+venv/
+
+# training data (too large for git)
+data/datasets/
+data/tokenizers/
+
+# model outputs
+*.pt
+*.ptz
+*.bin
+final_model*
+
+# training logs (optional — remove this line if you want logs in git)
+logs/
+
+# python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+.pytest_cache/
+
+# jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# system
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+
+# temp files
+*.tmp
+*.temp
