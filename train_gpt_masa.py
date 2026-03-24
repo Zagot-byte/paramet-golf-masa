@@ -494,16 +494,11 @@ class CausalSelfAttention(nn.Module):
         # MASA: instead of unique weight matrices, store mix coefficients only
         # These are tiny — just num_bases floats per projection per layer
         # The actual matrices are reconstructed as: sum(coeff[i] * base[i])
-        num_bases = shared_bases.num_bases
-        self.q_mix = nn.Parameter(torch.zeros(num_bases))   # mix weights for Q
-        self.k_mix = nn.Parameter(torch.zeros(num_bases))   # mix weights for K
-        self.v_mix = nn.Parameter(torch.zeros(num_bases))   # mix weights for V
-        self.o_mix = nn.Parameter(torch.zeros(num_bases))   # mix weights for Output
-        # Initialize one coefficient to 1 so training starts with a reasonable matrix
-        nn.init.normal_(self.q_mix, std=0.1)
-        nn.init.normal_(self.k_mix, std=0.1)
-        nn.init.normal_(self.v_mix, std=0.1)
-        nn.init.normal_(self.o_mix, std=0.1)
+        num_bases = shared_bases.num_bases  # use stored num_bases, NOT shape[0]
+        self.q_mix = nn.Parameter(torch.zeros(num_bases))
+        self.k_mix = nn.Parameter(torch.zeros(num_bases))
+        self.v_mix = nn.Parameter(torch.zeros(num_bases))
+        self.o_mix = nn.Parameter(torch.zeros(num_bases))
 
         self.shared_bases = shared_bases
         self.q_gain = nn.Parameter(torch.full((num_heads,), qk_gain_init, dtype=torch.float32))
@@ -823,15 +818,14 @@ def main():
     max_wallclock_ms = 1000.0 * args.max_wallclock_seconds if args.max_wallclock_seconds > 0 else None
 
     def lr_mul(step, elapsed_ms):
-        if args.warmdown_iters <= 0:
+        # Fixed warmdown: last 20% of total iterations
+        # Bug in original: wallclock-based warmdown decays LR from step 1 on short runs
+        warmdown_start = int(args.iterations * 0.8)
+        if step < warmdown_start:
             return 1.0
-        if max_wallclock_ms is None:
-            warmdown_start = max(args.iterations - args.warmdown_iters, 0)
-            return max((args.iterations - step) / max(args.warmdown_iters, 1), 0.0) if warmdown_start <= step < args.iterations else 1.0
-        step_ms = elapsed_ms / max(step, 1)
-        warmdown_ms = args.warmdown_iters * step_ms
-        remaining_ms = max(max_wallclock_ms - elapsed_ms, 0.0)
-        return remaining_ms / max(warmdown_ms, 1e-9) if remaining_ms <= warmdown_ms else 1.0
+        steps_into_warmdown = step - warmdown_start
+        warmdown_length = args.iterations - warmdown_start
+        return max(1.0 - steps_into_warmdown / warmdown_length, 0.0)
 
     if args.warmup_steps > 0:
         initial_model_state = {name: tensor.detach().cpu().clone() for name, tensor in base_model.state_dict().items()}
